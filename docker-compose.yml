@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+    main:
+        command: [ "/project/docker/main.sh" ]
+        build:
+          context: .
+          dockerfile: Dockerfile
+        container_name: "claimer"
+        logging:
+          options:
+            max-size: "500m"
+        networks:
+          - custom
+networks:
+  custom:
+    driver: bridge

@@ -1,0 +1,172 @@
+import json
+import time
+
+from loguru import logger
+from view.helper import *
+
+
+class WS:
+    def __init__(self, client):
+        super().__init__()
+        self.client = client
+
+    def start(self):
+        if not self.login():
+            logger.error(f'[{self.client.num}] | {self.client.address} | Error in login')
+        if self.check_available_claim_droplets():
+            self.claim_droplets()
+        if self.check_available_rarity_lockin():
+            self.rarity_lockin()
+        self.sub_list_channels()
+        self.secure_all_my_collections()
+
+    def sub_list_channels(self):
+        while True:
+            message = self.send_and_receive("get_discover_creators", {"limit": 12, "include_subscribed": False})
+            if message[4]['response']['ok']:
+                results = message[4]['response']['results']
+                if len(results) == 0:
+                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Sub List Channels] Subscribed to all channels')
+                    return
+                slug_list = [i['slug'] for i in results]
+                for slug in slug_list:
+                    status = self.sub_channel(slug)
+                    if not status:
+                        logger.error(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Sub List Channels] Error')
+                        return
+
+    def sub_channel(self,slug: str) -> bool:
+        message = self.send_and_receive("subscribe_channel", {'slug': slug})
+        if message[4]['status'] == 'ok':
+            if message[4]['response']['ok']:
+                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Sub Channel] slug: {slug}')
+                return True
+        return False
+
+    def secure_all_my_collections(self):
+        limit = 12
+        while True:
+            data = {
+                "pubkey": self.client.address,
+                "limit": limit,
+                "offset": 0,
+                "rarity": "legendary",
+                "type": "",
+                "search": "",
+                "is_secured": False,
+                "is_hidden": False
+            }
+            message = self.send_and_receive("get_vault", data)
+            if message[4]['response']['ok']:
+                results = message[4]['response']['results']
+                if len(results) == 0:
+                    logger.warning(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] Secured to all collections')
+                    return
+                droplet_ident_list = [i['droplet_ident'] for i in results]
+                for droplet_ident in droplet_ident_list:
+                    status = self.secure_droplet(droplet_ident)
+                    if not status:
+                        logger.warning(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] Droplets ran out')
+                        return
+
+    def secure_droplet(self, droplet_ident: str) -> bool:
+        message = self.send_and_receive("secure", {'droplet_ident': droplet_ident})
+        if message[4]['status'] == 'ok':
+            if message[4]['response']['ok']:
+                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] droplet_ident: {droplet_ident}')
+                return True
+        return False
+
+    def check_available_rarity_lockin(self) -> bool:
+        message = self.get_session_data()
+        next_at_ms = message[4]['rarity_lockin']['next_try_at_ms']
+        if time.time() * 1000 > next_at_ms:
+            return True
+        next_time_date_dict = time_time_to_hms(next_at_ms)
+        next_time_date_str = ' '.join([f'{int(v)}{k}' for k, v in next_time_date_dict.items()])
+        logger.warning(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Available Rarity Lockin] After {next_time_date_str}')
+        return False
+
+    def rarity_lockin(self):
+        message = self.send_and_receive("play_lockin", {})
+        if message[4]['response']['ok']:
+            rarity = message[4]['response']['rarity']
+            logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Play Lockin] rarity: {rarity}')
+        else:
+            logger.error(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Play Lockin] response: {message[4]["response"]}')
+
+    def check_available_claim_droplets(self) -> bool:
+        message = self.get_session_data()
+        next_at_ms = message[4]['claim_config']['next_at_ms']
+        if time.time() * 1000 > next_at_ms:
+            return True
+        next_time_date_dict = time_time_to_hms(next_at_ms)
+        next_time_date_str = ' '.join([f'{int(v)}{k}' for k, v in next_time_date_dict.items()])
+        logger.warning(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Available Claim] After {next_time_date_str}')
+        return False
+
+    def claim_droplets(self) -> int:
+        message = self.send_and_receive("claim_droplets", {})
+        result = message[4]['response']['result']
+        count_claimed = result['droplets'] * result['claim_multiplier']
+        logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [claim_droplets] count: {count_claimed}')
+        return count_claimed
+
+    def get_session_data(self) -> list:
+        data = {
+            "bearer": self.client.bearer,
+            "ua": self.client.ua,
+        }
+        self.send("phx_join", data)
+        while True:
+            message = self.receive_last_msg()
+            if 'bearer' in message[4].keys() and message[3] == 'session':
+                self.client.bearer = message[4]['bearer']
+                logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [phx_join] msg: {message}')
+                break
+        return message
+
+    def login(self) -> bool:
+        self.get_session_data()
+        if self.client.already_login:  # Если уже в Client есть валидный bearer не нужно логиниться
+            return True
+
+        signature = self.client.get_sign()
+        data = {
+            "signature": signature,
+            "address": self.client.address,
+        }
+        message = self.send_and_receive("verify_pubkey", data)
+        if message[4]['status'] == 'ok':
+            if message[4]['response']['ok']:
+                return True
+        return False
+
+    def logout(self):
+        self.send("logout", {})
+        logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [logout]')
+
+    def send_and_receive(self, name_func: str, data: dict) -> list:
+        self.send(name_func, data)
+        message = self.receive_count_msg(self.client.count_msg)
+        logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [{name_func}] msg: {message}')
+        return message
+
+    def send(self, name_func: str, data: dict) -> None:
+        self.client.count_msg += 1
+        data = ["3", self.client.count_msg, "drip", name_func, data]
+        msg = json.dumps(data)
+        self.client.ws.send(msg)
+
+    def receive_count_msg(self, count_msg: int) -> list:
+        while True:
+            message = self.receive_last_msg()
+            if message[1] == count_msg:
+                break
+        return message
+
+    def receive_last_msg(self) -> list:
+        message_str = self.client.ws.recv()
+        message = json.loads(message_str)
+        # logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [LAST MSG] msg: {message}')
+        return message
