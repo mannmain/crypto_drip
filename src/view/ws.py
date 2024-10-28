@@ -2,6 +2,8 @@ import json
 import time
 
 from loguru import logger
+
+from config import LOG_MORE
 from view.helper import *
 
 
@@ -26,7 +28,8 @@ class WS:
             if message[4]['response']['ok']:
                 results = message[4]['response']['results']
                 if len(results) == 0:
-                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Sub List Channels] Subscribed to all channels')
+                    if LOG_MORE:
+                        logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Sub List Channels] Subscribed to all channels')
                     return
                 slug_list = [i['slug'] for i in results]
                 for slug in slug_list:
@@ -66,16 +69,25 @@ class WS:
                 for droplet_ident in droplet_ident_list:
                     status = self.secure_droplet(droplet_ident)
                     if not status:
-                        logger.warning(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] Droplets ran out')
                         return
 
     def secure_droplet(self, droplet_ident: str) -> bool:
         message = self.send_and_receive("secure", {'droplet_ident': droplet_ident})
         if message[4]['status'] == 'ok':
             if message[4]['response']['ok']:
-                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] droplet_ident: {droplet_ident}')
+                if LOG_MORE:
+                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] droplet_ident: {droplet_ident}')
                 return True
-        return False
+            elif 'error' in message[4]['response'].keys():
+                if 'Insufficient balance' in message[4]['response']['error']:
+                    logger.warning(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] {message[4]["response"]["error"]}]')
+                    return False
+                else:
+                    logger.error(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] {message[4]["response"]["error"]}]')
+                    return False
+        else:
+            logger.error(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] status != "ok" {message[4]}]')
+            return False
 
     def check_available_rarity_lockin(self) -> bool:
         message = self.get_session_data()
@@ -122,7 +134,8 @@ class WS:
             message = self.receive_last_msg()
             if 'bearer' in message[4].keys() and message[3] == 'session':
                 self.client.bearer = message[4]['bearer']
-                logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [phx_join] msg: {message}')
+                if LOG_MORE:
+                    logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [phx_join] msg: {message}')
                 break
         return message
 
@@ -149,7 +162,8 @@ class WS:
     def send_and_receive(self, name_func: str, data: dict) -> list:
         self.send(name_func, data)
         message = self.receive_count_msg(self.client.count_msg)
-        logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [{name_func}] msg: {message}')
+        if LOG_MORE:
+            logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [{name_func}] msg: {message}')
         return message
 
     def send(self, name_func: str, data: dict) -> None:
