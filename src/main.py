@@ -7,12 +7,10 @@ from loguru import logger
 import pandas as pd
 
 
-creds_df = pd.read_excel('creds/creds.xlsx', sheet_name='Лист1')
-result = creds_df.to_dict(orient='records')
-
-
 def main():
     while True:
+        creds_df = pd.read_excel('creds/creds.xlsx', sheet_name='Лист1')
+        result = creds_df.to_dict(orient='records')
         for data in result:
             try:
                 client = Client(**data)
