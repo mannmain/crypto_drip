@@ -15,12 +15,44 @@ class WS:
     def start(self):
         if not self.login():
             logger.error(f'[{self.client.num}] | {self.client.address} | Error in login')
+        self.up_lvl_to_bronze()
         if self.check_available_claim_droplets():
             self.claim_droplets()
         if self.check_available_rarity_lockin():
             self.rarity_lockin()
         self.sub_list_channels()
         self.secure_all_my_collections()
+        self.get_droplet_balance()
+
+    def up_lvl_to_bronze(self):
+        if self.check_bronze_status():
+            return True
+        for rarity in ['rare', 'common']:
+            while True:
+                droplet_ident_list = self.get_droplet_ident_list(limit=12, rarity=rarity)
+                if not droplet_ident_list:
+                    break
+                for droplet_ident in droplet_ident_list:
+                    status = self.secure_droplet(droplet_ident)
+                    if self.check_bronze_status():
+                        return True
+                    if not status:
+                        break
+
+    def get_droplet_balance(self):
+        message = self.get_session_data()
+        droplet_balance = message[4]['droplet_balance']
+        logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Droplet Balance] {droplet_balance}')
+
+    def check_bronze_status(self):
+        message = self.get_session_data()
+        current_xp = message[4]['monthly_reward']['current_xp']
+        if current_xp >= 405:
+            logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Current XP] {current_xp}')
+            return True
+        else:
+            logger.info(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Current XP] {current_xp}')
+            return False
 
     def sub_list_channels(self):
         while True:
@@ -46,30 +78,41 @@ class WS:
                 return True
         return False
 
-    def secure_all_my_collections(self):
-        limit = 12
+    def get_droplet_ident_list(self, limit: int = 12, rarity: str = 'legendary'):
+        droplet_ident_list = []
+        data = {
+            "pubkey": self.client.address,
+            "limit": limit,
+            "offset": 0,
+            "rarity": rarity,
+            "type": "",
+            "search": "",
+            "is_secured": False,
+            "is_hidden": False
+        }
+        message = self.send_and_receive("get_vault", data)
+        if message[4]['response']['ok']:
+            results = message[4]['response']['results']
+            if len(results) == 0:
+                logger.warning(
+                    f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] Secured to all collections')
+                return []
+            droplet_ident_list = [i['droplet_ident'] for i in results]
+        return droplet_ident_list
+
+    def secure_all_my_collections(self, limit: int = 12, rarity: str = 'legendary'):
+        count_secure = 0
         while True:
-            data = {
-                "pubkey": self.client.address,
-                "limit": limit,
-                "offset": 0,
-                "rarity": "legendary",
-                "type": "",
-                "search": "",
-                "is_secured": False,
-                "is_hidden": False
-            }
-            message = self.send_and_receive("get_vault", data)
-            if message[4]['response']['ok']:
-                results = message[4]['response']['results']
-                if len(results) == 0:
-                    logger.warning(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure All Collection] Secured to all collections')
+            droplet_ident_list = self.get_droplet_ident_list(limit, rarity)
+            if not droplet_ident_list:
+                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure: {count_secure}')
+                return
+            for droplet_ident in droplet_ident_list:
+                status = self.secure_droplet(droplet_ident)
+                if not status:
+                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure: {count_secure}')
                     return
-                droplet_ident_list = [i['droplet_ident'] for i in results]
-                for droplet_ident in droplet_ident_list:
-                    status = self.secure_droplet(droplet_ident)
-                    if not status:
-                        return
+                count_secure += 1
 
     def secure_droplet(self, droplet_ident: str) -> bool:
         message = self.send_and_receive("secure", {'droplet_ident': droplet_ident})
