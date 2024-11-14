@@ -60,7 +60,7 @@ class WS:
                 if data['status']:
                     count_liked += 1
                 if (count_need_like == count_liked) or (data['type'] == 'error'):
-                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Likes] count like: {count_liked}')
+                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Likes] count like: {count_liked}/{count_need_like}')
                     return
 
     def up_lvl_to_bronze(self):
