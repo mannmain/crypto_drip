@@ -1,5 +1,6 @@
 import json
 import time
+from random import randint
 
 from loguru import logger
 
@@ -21,11 +22,49 @@ class WS:
         if self.check_available_rarity_lockin():
             self.rarity_lockin()
         self.sub_list_channels()
-        self.secure_all_my_collections()
+        if self.check_xp_status(11_000):
+            self.add_butch_likes()
+        count_secure = self.secure_all_my_collections()
+        if count_secure == 0:
+            self.secure_all_my_collections(rarity='rare')
         self.get_droplet_balance()
 
+    def check_can_like(self, droplet_ident: str):
+        self.send("get_liked", {'droplet_ident': droplet_ident})
+        while True:
+            message = self.receive_last_msg()
+            if message[3] == 'like' and message[4]['droplet_ident'] == droplet_ident:
+                return not message[4]['active']  # инвертируем так как TRUE, если уже стоит лайк, а нам нужны там, где лайки отсутствуют
+
+    def add_like(self, droplet_ident: str):
+        if not self.check_can_like(droplet_ident):
+            return {'status': False, 'type': 'already_liked'}
+        message = self.send_and_receive("add_like", {'droplet_ident': droplet_ident})
+        if message[4]['status'] == 'ok':
+            if message[4]['response']['ok']:
+                # if LOG_MORE:
+                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Add Like] droplet_ident: {droplet_ident}')
+                return {'status': True, 'type': 'ok'}
+        return {'status': False, 'type': 'error'}
+
+    def add_butch_likes(self, limit: int = 12, rarity: str = ''):
+        count_need_like = randint(3, 5)
+        count_liked = 0
+        while True:
+            droplet_ident_list = self.get_droplet_ident_list(limit, rarity, flag_only_unsecured=False)
+            if not droplet_ident_list:
+                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | Have no one nft for like')
+                return
+            for droplet_ident in droplet_ident_list:
+                data = self.add_like(droplet_ident)
+                if data['status']:
+                    count_liked += 1
+                if (count_need_like == count_liked) or (data['type'] == 'error'):
+                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Likes] count like: {count_liked}')
+                    return
+
     def up_lvl_to_bronze(self):
-        if self.check_bronze_status():
+        if self.check_xp_status(405):
             return True
         for rarity in ['rare', 'common']:
             while True:
@@ -34,7 +73,7 @@ class WS:
                     break
                 for droplet_ident in droplet_ident_list:
                     status = self.secure_droplet(droplet_ident)
-                    if self.check_bronze_status():
+                    if self.check_xp_status(405):
                         return True
                     if not status:
                         break
@@ -44,10 +83,10 @@ class WS:
         droplet_balance = message[4]['droplet_balance']
         logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Droplet Balance] {droplet_balance}')
 
-    def check_bronze_status(self):
+    def check_xp_status(self, xp: int = 405):
         message = self.get_session_data()
         current_xp = message[4]['monthly_reward']['current_xp']
-        if current_xp >= 405:
+        if current_xp >= xp:
             logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Current XP] {current_xp}')
             return True
         else:
@@ -78,7 +117,7 @@ class WS:
                 return True
         return False
 
-    def get_droplet_ident_list(self, limit: int = 12, rarity: str = 'legendary'):
+    def get_droplet_ident_list(self, limit: int = 12, rarity: str = 'legendary', flag_only_unsecured=True):
         droplet_ident_list = []
         data = {
             "pubkey": self.client.address,
@@ -87,9 +126,11 @@ class WS:
             "rarity": rarity,
             "type": "",
             "search": "",
-            "is_secured": False,
+            # "is_secured": False,
             "is_hidden": False
         }
+        if flag_only_unsecured:
+            data['is_secured'] = False
         message = self.send_and_receive("get_vault", data)
         if message[4]['response']['ok']:
             results = message[4]['response']['results']
@@ -100,18 +141,18 @@ class WS:
             droplet_ident_list = [i['droplet_ident'] for i in results]
         return droplet_ident_list
 
-    def secure_all_my_collections(self, limit: int = 12, rarity: str = 'legendary'):
+    def secure_all_my_collections(self, limit: int = 12, rarity: str = 'legendary') -> int:
         count_secure = 0
         while True:
             droplet_ident_list = self.get_droplet_ident_list(limit, rarity)
             if not droplet_ident_list:
-                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure: {count_secure}')
-                return
+                logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure ({rarity}): {count_secure}')
+                return count_secure
             for droplet_ident in droplet_ident_list:
                 status = self.secure_droplet(droplet_ident)
                 if not status:
-                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure: {count_secure}')
-                    return
+                    logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure ({rarity}): {count_secure}')
+                    return count_secure
                 count_secure += 1
 
     def secure_droplet(self, droplet_ident: str) -> bool:
