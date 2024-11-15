@@ -24,8 +24,8 @@ class WS:
         self.sub_list_channels()
         if self.check_xp_status(11_000):
             self.add_butch_likes()
-        count_secure = self.secure_all_my_collections()
-        if count_secure == 0:
+        data = self.secure_all_my_collections()
+        if data['status'] == 'empty':
             self.secure_all_my_collections(rarity='rare')
         self.get_droplet_balance()
 
@@ -141,18 +141,18 @@ class WS:
             droplet_ident_list = [i['droplet_ident'] for i in results]
         return droplet_ident_list
 
-    def secure_all_my_collections(self, limit: int = 12, rarity: str = 'legendary') -> int:
+    def secure_all_my_collections(self, limit: int = 12, rarity: str = 'legendary') -> dict:
         count_secure = 0
         while True:
             droplet_ident_list = self.get_droplet_ident_list(limit, rarity)
             if not droplet_ident_list:
                 logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure ({rarity}): {count_secure}')
-                return count_secure
+                return {'count_secure': count_secure, 'status': 'empty'}
             for droplet_ident in droplet_ident_list:
                 status = self.secure_droplet(droplet_ident)
                 if not status:
                     logger.success(f'[{self.client.num}] | {self.client.address} | {self.client.count_msg} | [Secure Droplet] count secure ({rarity}): {count_secure}')
-                    return count_secure
+                    return {'count_secure': count_secure, 'status': 'some_error'}
                 count_secure += 1
 
     def secure_droplet(self, droplet_ident: str) -> bool:
