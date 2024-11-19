@@ -76,7 +76,7 @@ class WS:
                     if self.check_xp_status(405):
                         return True
                     if not status:
-                        break
+                        return
 
     def get_droplet_balance(self):
         message = self.get_session_data()
