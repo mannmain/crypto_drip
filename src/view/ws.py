@@ -27,6 +27,8 @@ class WS:
         data = self.secure_all_my_collections()
         if data['status'] == 'empty':
             self.secure_all_my_collections(rarity='rare')
+            if data['status'] == 'empty':
+                self.secure_all_my_collections(rarity='common')
         self.get_droplet_balance()
 
     def check_can_like(self, droplet_ident: str):
