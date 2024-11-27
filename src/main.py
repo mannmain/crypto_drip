@@ -24,7 +24,8 @@ def main():
             except Exception as ex:
                 logger.error(f'[{data["num"]}] | Error Global: {ex}')
                 pass
-        time.sleep(randint(6*3600 + 120, 6*3600 + 300))
+        # time.sleep(randint(6*3600 + 120, 6*3600 + 300))
+        time.sleep(60)
 
 
 if __name__ == '__main__':

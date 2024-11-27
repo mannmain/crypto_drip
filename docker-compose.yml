@@ -10,6 +10,8 @@ services:
         logging:
           options:
             max-size: "500m"
+        volumes:
+            - /home/crypto_drip/src/creds:/project/src/creds
         networks:
           - custom
 networks:
