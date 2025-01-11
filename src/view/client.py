@@ -1,6 +1,8 @@
 import websocket
 from solana.transaction import Keypair
 from view.helper import *
+import random
+import string
 
 
 class Client:
@@ -11,13 +13,24 @@ class Client:
             num: str | int = 1,
             proxy: str | None = None,
             bearer: str | None = None,
+            **kwargs
     ):
         self.count_msg = 0
         self.num = str(num)
         drip_ws_url = "wss://drip.haus/drip/websocket?vsn=2.0.0"
         self.ws = websocket.WebSocket()
         self.proxy_url = proxy
-        self.ws.connect(drip_ws_url, **self.get_kwargs_proxy())
+        if 'http://' not in self.proxy_url:
+            self.proxy_url = f'http://{self.proxy_url}'
+        for _ in range(10):
+            try:
+                self.ws.connect(drip_ws_url, **self.get_kwargs_proxy())
+                break
+            except:
+                time.sleep(10)
+        else:
+            print(f'[{self.num}] bad proxy {self.proxy_url}')
+            raise Exception(f'[{self.num}] bad proxy {self.proxy_url}')
         self.pk = private_key
         self.address = str(Keypair.from_base58_string(self.pk).pubkey())
         self.bearer = get_uuid4()
@@ -26,6 +39,10 @@ class Client:
             self.bearer = bearer
             self.already_login = True
         self.ua = get_user_agent()
+
+    def get_nano_id(self, size=21):
+        chars = string.ascii_lowercase + string.ascii_uppercase + '0123456789-_'
+        return ''.join(random.choice(chars) for _ in range(size))
 
     def get_sign(self) -> str:
         keypair = Keypair.from_base58_string(self.pk)
