@@ -24,6 +24,7 @@ class Client:
         self.ua = get_user_agent()
         if 'http://' not in self.proxy_url:
             self.proxy_url = f'http://{self.proxy_url}'
+        ex = ''
         for _ in range(20):
             try:
                 self.ws.connect(drip_ws_url, **self.get_kwargs_proxy())
@@ -33,7 +34,7 @@ class Client:
                 logger.error(f'[{self.num}] | error proxy: {ex}')
                 # time.sleep(10)
         else:
-            raise Exception(f'[{self.num}] bad proxy {self.proxy_url}')
+            raise Exception(f'[{self.num}] bad proxy {self.proxy_url} ({ex})')
         self.pk = private_key
         self.address = str(Keypair.from_base58_string(self.pk).pubkey())
         self.bearer = get_uuid4()
