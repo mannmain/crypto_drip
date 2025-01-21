@@ -18,7 +18,7 @@ def main():
         creds_df = creds_df.fillna('')
         result = creds_df.to_dict(orient='records')
         result = [i for i in result if str(i['status']) == '1']
-        # result = [i for i in result if i['num'] == 'crypto_soroka_13']
+        result = [i for i in result if i['num'] == 'crypto_soroka_81']
         for data in result:
             count_error = 0
             while True:
