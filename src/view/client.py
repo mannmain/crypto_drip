@@ -1,4 +1,5 @@
 import websocket
+from loguru import logger
 from solana.transaction import Keypair
 from view.helper import *
 import random
@@ -20,16 +21,18 @@ class Client:
         drip_ws_url = "wss://drip.haus/drip/websocket?vsn=2.0.0"
         self.ws = websocket.WebSocket()
         self.proxy_url = proxy
+        self.ua = get_user_agent()
         if 'http://' not in self.proxy_url:
             self.proxy_url = f'http://{self.proxy_url}'
-        for _ in range(10):
+        for _ in range(20):
             try:
                 self.ws.connect(drip_ws_url, **self.get_kwargs_proxy())
                 break
-            except:
-                time.sleep(10)
+            except Exception as ex:
+                print(f'error proxy: {ex}')
+                logger.error(f'[{self.num}] | error proxy: {ex}')
+                # time.sleep(10)
         else:
-            print(f'[{self.num}] bad proxy {self.proxy_url}')
             raise Exception(f'[{self.num}] bad proxy {self.proxy_url}')
         self.pk = private_key
         self.address = str(Keypair.from_base58_string(self.pk).pubkey())
@@ -38,7 +41,6 @@ class Client:
         if bearer:
             self.bearer = bearer
             self.already_login = True
-        self.ua = get_user_agent()
 
     def get_nano_id(self, size=21):
         chars = string.ascii_lowercase + string.ascii_uppercase + '0123456789-_'
