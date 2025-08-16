@@ -8,8 +8,7 @@ def main():
         'private_key': acc_with_balance,
         'num': 'seder'
     }
-    # creds_df = pd.read_excel('creds/creds_new_slarck.xlsx', sheet_name='Лист1', dtype=str)
-    creds_df = pd.read_excel('creds/creds_crypto_soroka.xlsx', sheet_name='Лист1', dtype=str)
+    creds_df = pd.read_excel('creds/creds.xlsx', sheet_name='Лист1', dtype=str)
     result = creds_df.to_dict(orient='records')
     slave_acc_list = [i for i in result if str(i['transfer']) == '1']
     for slave_acc in slave_acc_list:

@@ -15,7 +15,7 @@ class WS:
         super().__init__()
         self.client = client
 
-    def start(self):
+    def start(self, only_check_xp=False):
         if not self.login():
             logger.error(f'[{self.client.num}] | {self.client.address} | Error in login')
         # self.first_login()
@@ -24,6 +24,9 @@ class WS:
         # self.check_collection_on_acc('Pudgy')
         # self.check_unlock_price()
 
+        if only_check_xp:
+            self.check_stop_need_rank()
+            return
 
         self.get_sponsoreds()
         self.up_lvl_to_bronze()

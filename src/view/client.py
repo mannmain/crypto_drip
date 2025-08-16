@@ -32,7 +32,6 @@ class Client:
             except Exception as ex:
                 ex_last = str(ex)
                 logger.error(f'[{self.num}] | error proxy: {ex}')
-                # time.sleep(10)
         else:
             raise Exception(f'[{self.num}] bad proxy {self.proxy_url} ({ex_last})')
         self.pk = private_key
